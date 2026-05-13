@@ -845,22 +845,37 @@
 <div class="modal-bg" id="settingsModal" onclick="bgClose(event)">
   <div class="modal-sheet">
     <div class="modal-title">⚙️ Settings</div>
-    <div class="modal-sub">Add a free Groq API key to enable recipe scanning. No credit card, no region blocks.</div>
 
-    <label class="field-lbl" for="workerInput">Groq API Key</label>
-    <input class="text-input" type="text" id="workerInput"
-      placeholder="gsk_..."
-      autocomplete="off" autocorrect="off" spellcheck="false">
-
-    <div class="setup-help">
-      <strong>Get your free key (takes 1 min):</strong><br>
-      1. Go to <code>console.groq.com</code><br>
-      2. Sign up free → <code>API Keys</code> → <code>Create API Key</code><br>
-      3. Copy it and paste above — done!
+    <!-- Key saved view -->
+    <div id="keySetView" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;background:#f0fbf5;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+        <span style="font-size:22px">🔑</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:#2d6a4f">API Key saved</div>
+          <div style="font-size:12px;color:#777;margin-top:2px" id="keyHint"></div>
+        </div>
+        <span style="font-size:18px;color:#2d6a4f">✓</span>
+      </div>
+      <button class="modal-save" style="margin-bottom:10px" onclick="showChangeKey()">🔄 Change Key</button>
+      <button class="modal-cancel" onclick="closeSettings()">Done</button>
     </div>
 
-    <button class="modal-save" onclick="saveSettings()">Save</button>
-    <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+    <!-- Key entry view -->
+    <div id="keyEntryView">
+      <div class="modal-sub">Add a free Groq API key to enable recipe scanning. No credit card, no region blocks.</div>
+      <label class="field-lbl" for="workerInput">Groq API Key</label>
+      <input class="text-input" type="password" id="workerInput"
+        placeholder="gsk_..."
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <div class="setup-help">
+        <strong>Get your free key (takes 1 min):</strong><br>
+        1. Go to <code>console.groq.com</code><br>
+        2. Sign up free → <code>API Keys</code> → <code>Create API Key</code><br>
+        3. Copy it and paste above — done!
+      </div>
+      <button class="modal-save" onclick="saveSettings()">Save</button>
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -1343,8 +1358,23 @@ function updateNextBtn() {
    SETTINGS
 ════════════════════════════════════════════════ */
 function openSettings() {
-  document.getElementById('workerInput').value = aiKey;
+  if (aiKey) {
+    document.getElementById('keyHint').textContent = `gsk_···${aiKey.slice(-4)}`;
+    document.getElementById('keySetView').style.display   = 'block';
+    document.getElementById('keyEntryView').style.display = 'none';
+  } else {
+    document.getElementById('keySetView').style.display   = 'none';
+    document.getElementById('keyEntryView').style.display = 'block';
+    document.getElementById('workerInput').value = '';
+  }
   document.getElementById('settingsModal').classList.add('open');
+}
+
+function showChangeKey() {
+  document.getElementById('keySetView').style.display   = 'none';
+  document.getElementById('keyEntryView').style.display = 'block';
+  document.getElementById('workerInput').value = '';
+  document.getElementById('workerInput').focus();
 }
 
 function closeSettings() {
@@ -1356,7 +1386,9 @@ function bgClose(e) {
 }
 
 function saveSettings() {
-  aiKey = document.getElementById('workerInput').value.trim();
+  const val = document.getElementById('workerInput').value.trim();
+  if (!val) return;
+  aiKey = val;
   persist();
   closeSettings();
   updateHome();
