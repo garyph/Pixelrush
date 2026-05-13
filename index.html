@@ -748,8 +748,8 @@
 
   <div class="scroll">
     <div class="warn" id="warnBanner">
-      ⚠️ Worker URL not set.
-      <span class="warn-link" onclick="openSettings()">Tap here to configure</span>
+      ⚠️ API key not set.
+      <span class="warn-link" onclick="openSettings()">Tap here to add your free Gemini key</span>
       before scanning.
     </div>
 
@@ -845,18 +845,18 @@
 <div class="modal-bg" id="settingsModal" onclick="bgClose(event)">
   <div class="modal-sheet">
     <div class="modal-title">⚙️ Settings</div>
-    <div class="modal-sub">Connect a Cloudflare Worker to enable AI recipe scanning.</div>
+    <div class="modal-sub">Add a free Google Gemini API key to enable recipe scanning. No credit card needed.</div>
 
-    <label class="field-lbl" for="workerInput">Worker URL</label>
-    <input class="text-input" type="url" id="workerInput"
-      placeholder="https://your-worker.your-account.workers.dev"
+    <label class="field-lbl" for="workerInput">Google Gemini API Key</label>
+    <input class="text-input" type="text" id="workerInput"
+      placeholder="AIzaSy..."
       autocomplete="off" autocorrect="off" spellcheck="false">
 
     <div class="setup-help">
-      <strong>How to set up:</strong><br>
-      1. Deploy <code>worker.js</code> to Cloudflare Workers<br>
-      2. Add <code>ANTHROPIC_API_KEY</code> as a Worker secret<br>
-      3. Paste the Worker URL above and save
+      <strong>Get your free key (takes 1 min):</strong><br>
+      1. Go to <code>aistudio.google.com</code><br>
+      2. Tap <code>Get API key</code> → <code>Create API key</code><br>
+      3. Copy it and paste above — done!
     </div>
 
     <button class="modal-save" onclick="saveSettings()">Save</button>
@@ -868,7 +868,7 @@
 /* ════════════════════════════════════════════════
    STATE
 ════════════════════════════════════════════════ */
-let workerUrl    = localStorage.getItem('sc-worker') || '';
+let geminiKey    = localStorage.getItem('sc-gemini') || '';
 let savedRecipes = JSON.parse(localStorage.getItem('sc-recipes') || '[]');
 let capture      = null;  // { dataUrl, base64, mimeType }
 let activeRec    = null;  // current recipe object from savedRecipes
@@ -877,7 +877,7 @@ let taskStates   = [];    // taskStates[stepIdx][taskIdx] = bool
 let procTimer    = null;
 
 function persist() {
-  localStorage.setItem('sc-worker',  workerUrl);
+  localStorage.setItem('sc-gemini',  geminiKey);
   localStorage.setItem('sc-recipes', JSON.stringify(savedRecipes));
 }
 
@@ -898,7 +898,7 @@ function goHome() {
    HOME
 ════════════════════════════════════════════════ */
 function updateHome() {
-  document.getElementById('warnBanner').classList.toggle('show', !workerUrl);
+  document.getElementById('warnBanner').classList.toggle('show', !geminiKey);
 
   const list  = document.getElementById('recipeList');
   const empty = document.getElementById('emptyState');
@@ -952,7 +952,7 @@ document.getElementById('fileInput').addEventListener('change', async e => {
 });
 
 function startScan() {
-  if (!workerUrl) { openSettings(); return; }
+  if (!geminiKey) { openSettings(); return; }
   document.getElementById('fileInput').click();
 }
 
@@ -983,8 +983,25 @@ function resizeImage(file, maxDim = 1600, q = 0.82) {
 }
 
 /* ════════════════════════════════════════════════
-   ANALYZE
+   ANALYZE  (calls Google Gemini directly — free, no server needed)
 ════════════════════════════════════════════════ */
+const RECIPE_PROMPT = `You are parsing a HelloFresh recipe card photo.
+Return ONLY a raw JSON object — no markdown, no code fences, no explanation.
+{
+  "name": "Recipe Name",
+  "tagline": "Short subtitle e.g. 'with Herb Rice'",
+  "servings": "2",
+  "totalTime": "45 min",
+  "ingredients": [{ "emoji": "🥩", "name": "Ingredient" }],
+  "steps": [{
+    "name": "Step name", "emoji": "🔪", "bg": "#e8f5e9",
+    "time": "5-10 min",
+    "tip": "A practical cooking tip",
+    "tasks": ["Clear single-action task", "Another task"]
+  }]
+}
+Rules: include ALL steps on the card; break each into 4-8 single-action tasks; choose fitting emoji and soft pastel bg hex per step; time is null if not stated; add a useful tip per step.`;
+
 async function analyzeRecipe() {
   if (!capture) return;
   document.getElementById('analyzeBtn').disabled = true;
@@ -992,16 +1009,33 @@ async function analyzeRecipe() {
   startProcAnim();
 
   try {
-    const res = await fetch(`${workerUrl}/api/parse-recipe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: capture.base64, mimeType: capture.mimeType }),
-    });
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: capture.mimeType, data: capture.base64 } },
+            { text: RECIPE_PROMPT }
+          ]}],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 3000 },
+        }),
+      }
+    );
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+    if (!res.ok) throw new Error(data.error?.message || `API error ${res.status}`);
 
-    const recipe = data.recipe;
+    const rawText = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '')
+      .replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+
+    let recipe;
+    try {
+      const match = rawText.match(/\{[\s\S]*\}/);
+      recipe = JSON.parse(match ? match[0] : rawText);
+    } catch { throw new Error('Could not parse recipe — try a clearer photo'); }
+
     if (!recipe?.steps?.length) throw new Error('No recipe steps found — try a clearer photo');
 
     stopProcAnim();
@@ -1304,7 +1338,7 @@ function updateNextBtn() {
    SETTINGS
 ════════════════════════════════════════════════ */
 function openSettings() {
-  document.getElementById('workerInput').value = workerUrl;
+  document.getElementById('workerInput').value = geminiKey;
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -1317,7 +1351,7 @@ function bgClose(e) {
 }
 
 function saveSettings() {
-  workerUrl = document.getElementById('workerInput').value.trim().replace(/\/$/, '');
+  geminiKey = document.getElementById('workerInput').value.trim();
   persist();
   closeSettings();
   updateHome();
