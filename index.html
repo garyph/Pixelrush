@@ -1210,7 +1210,7 @@ function resizeImage(file, maxDim = 1600, q = 0.82) {
 const RECIPE_PROMPT = `You are parsing a HelloFresh recipe card photo.
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation.
 {
-  "name": "Recipe Name",
+  "name": "Proper culinary dish name based on main ingredients and cooking method (e.g. 'Creamy Garlic Butter Chicken', 'Smoky BBQ Pork Tacos', 'Lemon Herb Salmon with Rice') — NOT a branded or card title",
   "tagline": "Short subtitle e.g. 'with Herb Rice'",
   "servings": "2",
   "totalTime": "45 min",
@@ -1222,7 +1222,8 @@ Return ONLY a raw JSON object — no markdown, no code fences, no explanation.
     "tasks": ["Clear single-action task", "Another task"]
   }]
 }
-Rules: include ALL steps on the card; break each into 4-8 single-action tasks; choose fitting emoji and soft pastel bg hex per step; time is null if not stated; add a useful tip per step.`;
+Rules: include ALL steps on the card; break each into 4-8 single-action tasks; choose fitting emoji and soft pastel bg hex per step; time is null if not stated; add a useful tip per step.
+For "name": infer a real descriptive dish name from the ingredients and cooking method visible on the card — ignore any HelloFresh branding or card title.`;
 
 async function analyzeRecipe() {
   if (!capture) return;
