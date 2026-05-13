@@ -1,98 +1,188 @@
 /**
- * PixelDash — Global Leaderboard Worker
- * ─────────────────────────────────────
- * Deploy to Cloudflare Workers with a KV namespace called PIXELDASH_KV
+ * Scan & Cook — Cloudflare Worker
+ * ─────────────────────────────────────────────────────────────────
+ * Required environment secrets (set in Cloudflare dashboard):
+ *   ANTHROPIC_API_KEY  — your Anthropic API key
+ *
+ * Optional KV namespace (for legacy leaderboard endpoints):
+ *   PIXELDASH_KV
  *
  * Endpoints:
- *   GET  /api/board          → { scores:[...top10], gamesPlayed:N }
- *   POST /api/score          → submit { name, score }
- *   POST /api/played         → increment global games-played counter
+ *   POST /api/parse-recipe   → { recipe } — AI vision recipe parser
+ *   GET  /api/board          → leaderboard (legacy)
+ *   POST /api/score          → submit score (legacy)
+ *   POST /api/played         → increment counter (legacy)
  */
 
-const KV_SCORES  = 'scores_v1';
-const KV_PLAYED  = 'games_played';
-const MAX_SCORES = 10;
-
-// ── Bad word list (expand as needed) ─────────────────────────────────────────
-const BAD = [
-  'fuck','shit','cunt','ass','bitch','dick','cock','pussy','nigger','nigga',
-  'fag','faggot','whore','slut','bastard','piss','damn','hell','sex','porn',
-  'nazi','rape','kill','die','dead','nude','xxx',
-];
-
-function isBad(name) {
-  const n = name.toLowerCase().replace(/[^a-z0-9]/g,'');
-  return BAD.some(w => n.includes(w));
-}
-
-// ── CORS headers ──────────────────────────────────────────────────────────────
+/* ── CORS ──────────────────────────────────────────────────────── */
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-function ok(data)       { return new Response(JSON.stringify(data), { headers: {'Content-Type':'application/json',...CORS} }); }
-function bad(msg, s=400){ return new Response(JSON.stringify({error:msg}), { status:s, headers:{'Content-Type':'application/json',...CORS} }); }
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...CORS },
+  });
+}
 
-// ── Worker ───────────────────────────────────────────────────────────────────
+function err(msg, status = 400) {
+  return json({ error: msg }, status);
+}
+
+/* ── Recipe parse prompt ───────────────────────────────────────── */
+const RECIPE_PROMPT = `You are parsing a HelloFresh recipe card photo.
+
+Return ONLY a raw JSON object — no markdown, no code fences, no explanation.
+
+{
+  "name": "Recipe Name",
+  "tagline": "Short subtitle e.g. 'with Herb Rice & Lemon'",
+  "servings": "2",
+  "totalTime": "45 min",
+  "ingredients": [
+    { "emoji": "🥩", "name": "Ingredient name" }
+  ],
+  "steps": [
+    {
+      "name": "Step name",
+      "emoji": "🔪",
+      "bg": "#e8f5e9",
+      "time": "5-10 min",
+      "tip": "A practical cooking tip",
+      "tasks": [
+        "Clear single-action task",
+        "Another task"
+      ]
+    }
+  ]
+}
+
+Rules:
+- Include every step visible on the card
+- Break each step into 4-8 individual, single-action tasks
+  (split compound sentences into separate items)
+- Choose a fitting emoji and soft pastel hex background color per step
+- "time" is a string like "15-18 min", or null if not stated
+- "tip" is a brief, practical culinary tip from your own knowledge
+- For ingredients, choose fitting food emojis`;
+
+/* ── Worker entry ──────────────────────────────────────────────── */
 export default {
   async fetch(req, env) {
-    const { method, url } = req;
-    const { pathname }    = new URL(url);
+    const { method } = req;
+    const { pathname } = new URL(req.url);
 
-    if (method === 'OPTIONS') return new Response(null, { status:204, headers:CORS });
-
-    // ── GET /api/board ──────────────────────────────────────────────────────
-    if (method === 'GET' && pathname === '/api/board') {
-      const [raw, played] = await Promise.all([
-        env.PIXELDASH_KV.get(KV_SCORES, { type:'json' }),
-        env.PIXELDASH_KV.get(KV_PLAYED),
-      ]);
-      return ok({
-        scores:      Array.isArray(raw) ? raw : [],
-        gamesPlayed: parseInt(played || '0'),
-      });
+    if (method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: CORS });
     }
 
-    // ── POST /api/played ────────────────────────────────────────────────────
-    if (method === 'POST' && pathname === '/api/played') {
-      const cur = parseInt(await env.PIXELDASH_KV.get(KV_PLAYED) || '0');
-      await env.PIXELDASH_KV.put(KV_PLAYED, String(cur + 1));
-      return ok({ gamesPlayed: cur + 1 });
-    }
-
-    // ── POST /api/score ─────────────────────────────────────────────────────
-    if (method === 'POST' && pathname === '/api/score') {
+    /* ── POST /api/parse-recipe ─────────────────────────────────── */
+    if (method === 'POST' && pathname === '/api/parse-recipe') {
       let body;
-      try { body = await req.json(); } catch { return bad('Invalid JSON'); }
+      try { body = await req.json(); } catch { return err('Invalid JSON'); }
 
-      const { name, score } = body;
+      const { image, mimeType = 'image/jpeg' } = body;
+      if (!image)          return err('image is required');
+      if (image.length > 6_000_000) return err('Image too large — please use a smaller photo');
 
-      // Validate name
-      const clean = String(name || '').trim().replace(/[^A-Za-z0-9_\-\.]/g,'').slice(0,7).toUpperCase();
-      if (!clean || clean.length < 1) return bad('Name required (1–7 chars, letters/numbers only)');
-      if (isBad(clean))               return bad('That name is not allowed');
+      const apiKey = env.ANTHROPIC_API_KEY;
+      if (!apiKey) return err('Server not configured (missing ANTHROPIC_API_KEY)', 503);
 
-      // Validate score
-      const s = parseInt(score);
-      if (isNaN(s) || s < 0 || s > 999999) return bad('Invalid score');
+      let aiRes;
+      try {
+        aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type':    'application/json',
+            'x-api-key':       apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model:      'claude-haiku-4-5-20251001',
+            max_tokens: 3000,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type:   'image',
+                  source: { type: 'base64', media_type: mimeType, data: image },
+                },
+                { type: 'text', text: RECIPE_PROMPT },
+              ],
+            }],
+          }),
+        });
+      } catch (e) {
+        return err('Could not reach AI service — check Worker connectivity', 502);
+      }
 
-      const entry = {
-        name:  clean,
-        score: s,
-        date:  new Date().toISOString().slice(0,10),
-      };
+      if (!aiRes.ok) {
+        const detail = await aiRes.text().catch(() => '');
+        return err(`AI error ${aiRes.status}: ${detail}`, 502);
+      }
 
-      // Load existing, insert, sort, trim to top 10, save
-      const existing = (await env.PIXELDASH_KV.get(KV_SCORES, { type:'json' })) || [];
-      const merged   = [...existing, entry].sort((a,b) => b.score - a.score).slice(0, MAX_SCORES);
-      await env.PIXELDASH_KV.put(KV_SCORES, JSON.stringify(merged));
+      const aiData  = await aiRes.json();
+      const rawText = aiData.content?.[0]?.text ?? '';
 
-      const rank = merged.findIndex(e => e.name === clean && e.score === s) + 1;
-      return ok({ ok:true, rank, board: merged });
+      // Strip markdown code fences if Claude wrapped the JSON
+      const cleaned = rawText
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```\s*$/, '')
+        .trim();
+
+      let recipe;
+      try {
+        // Be forgiving: find the first { … } block in case of extra text
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        recipe = JSON.parse(match ? match[0] : cleaned);
+      } catch {
+        return err('Could not parse recipe from this image — try a clearer photo', 422);
+      }
+
+      if (!Array.isArray(recipe.steps) || recipe.steps.length === 0) {
+        return err('No recipe steps found — try a clearer photo of the recipe card', 422);
+      }
+
+      return json({ recipe });
     }
 
-    return bad('Not found', 404);
+    /* ── Legacy leaderboard endpoints ──────────────────────────── */
+    const KV = env.PIXELDASH_KV;
+
+    if (method === 'GET' && pathname === '/api/board') {
+      if (!KV) return json({ scores: [], gamesPlayed: 0 });
+      const [raw, played] = await Promise.all([
+        KV.get('scores_v1', { type: 'json' }),
+        KV.get('games_played'),
+      ]);
+      return json({ scores: Array.isArray(raw) ? raw : [], gamesPlayed: parseInt(played || '0') });
+    }
+
+    if (method === 'POST' && pathname === '/api/played') {
+      if (!KV) return json({ gamesPlayed: 0 });
+      const cur = parseInt(await KV.get('games_played') || '0');
+      await KV.put('games_played', String(cur + 1));
+      return json({ gamesPlayed: cur + 1 });
+    }
+
+    if (method === 'POST' && pathname === '/api/score') {
+      if (!KV) return err('Leaderboard not available', 503);
+      let body;
+      try { body = await req.json(); } catch { return err('Invalid JSON'); }
+      const name  = String(body.name || '').trim().replace(/[^A-Za-z0-9_.'-]/g, '').slice(0, 7).toUpperCase();
+      const score = parseInt(body.score);
+      if (!name)                        return err('Name required');
+      if (isNaN(score) || score < 0)    return err('Invalid score');
+      const entry    = { name, score, date: new Date().toISOString().slice(0, 10) };
+      const existing = (await KV.get('scores_v1', { type: 'json' })) || [];
+      const merged   = [...existing, entry].sort((a, b) => b.score - a.score).slice(0, 10);
+      await KV.put('scores_v1', JSON.stringify(merged));
+      return json({ ok: true, rank: merged.findIndex(e => e.name === name && e.score === score) + 1, board: merged });
+    }
+
+    return err('Not found', 404);
   },
 };

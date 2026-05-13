@@ -1,4 +1,4 @@
-const CACHE = 'hf-recipe-v1';
+const CACHE  = 'scan-cook-v1';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192x192.png', '/icon-512x512.png'];
 
 self.addEventListener('install', e =>
@@ -14,5 +14,6 @@ self.addEventListener('activate', e =>
 );
 
 self.addEventListener('fetch', e => {
+  if (e.request.url.includes('/api/')) return; // never cache API calls
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });

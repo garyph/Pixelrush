@@ -1,7 +1,7 @@
 {
-  "name": "Sweet Chili Pork · HelloFresh",
-  "short_name": "Recipe",
-  "description": "Step-by-step recipe guide for Sweet Chili Pork with Candied Peanuts & Lime Rice",
+  "name": "Scan & Cook",
+  "short_name": "Scan & Cook",
+  "description": "Point your camera at any HelloFresh recipe card and get a step-by-step cooking guide instantly.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
