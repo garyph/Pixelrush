@@ -749,7 +749,7 @@
   <div class="scroll">
     <div class="warn" id="warnBanner">
       ⚠️ API key not set.
-      <span class="warn-link" onclick="openSettings()">Tap here to add your free Gemini key</span>
+      <span class="warn-link" onclick="openSettings()">Tap here to add your free Groq key</span>
       before scanning.
     </div>
 
@@ -845,17 +845,17 @@
 <div class="modal-bg" id="settingsModal" onclick="bgClose(event)">
   <div class="modal-sheet">
     <div class="modal-title">⚙️ Settings</div>
-    <div class="modal-sub">Add a free Google Gemini API key to enable recipe scanning. No credit card needed.</div>
+    <div class="modal-sub">Add a free Groq API key to enable recipe scanning. No credit card, no region blocks.</div>
 
-    <label class="field-lbl" for="workerInput">Google Gemini API Key</label>
+    <label class="field-lbl" for="workerInput">Groq API Key</label>
     <input class="text-input" type="text" id="workerInput"
-      placeholder="AIzaSy..."
+      placeholder="gsk_..."
       autocomplete="off" autocorrect="off" spellcheck="false">
 
     <div class="setup-help">
       <strong>Get your free key (takes 1 min):</strong><br>
-      1. Go to <code>aistudio.google.com</code><br>
-      2. Tap <code>Get API key</code> → <code>Create API key</code><br>
+      1. Go to <code>console.groq.com</code><br>
+      2. Sign up free → <code>API Keys</code> → <code>Create API Key</code><br>
       3. Copy it and paste above — done!
     </div>
 
@@ -868,7 +868,7 @@
 /* ════════════════════════════════════════════════
    STATE
 ════════════════════════════════════════════════ */
-let geminiKey    = localStorage.getItem('sc-gemini') || '';
+let aiKey        = localStorage.getItem('sc-ai') || '';
 let savedRecipes = JSON.parse(localStorage.getItem('sc-recipes') || '[]');
 let capture      = null;  // { dataUrl, base64, mimeType }
 let activeRec    = null;  // current recipe object from savedRecipes
@@ -877,7 +877,7 @@ let taskStates   = [];    // taskStates[stepIdx][taskIdx] = bool
 let procTimer    = null;
 
 function persist() {
-  localStorage.setItem('sc-gemini',  geminiKey);
+  localStorage.setItem('sc-ai',      aiKey);
   localStorage.setItem('sc-recipes', JSON.stringify(savedRecipes));
 }
 
@@ -898,7 +898,7 @@ function goHome() {
    HOME
 ════════════════════════════════════════════════ */
 function updateHome() {
-  document.getElementById('warnBanner').classList.toggle('show', !geminiKey);
+  document.getElementById('warnBanner').classList.toggle('show', !aiKey);
 
   const list  = document.getElementById('recipeList');
   const empty = document.getElementById('emptyState');
@@ -952,7 +952,7 @@ document.getElementById('fileInput').addEventListener('change', async e => {
 });
 
 function startScan() {
-  if (!geminiKey) { openSettings(); return; }
+  if (!aiKey) { openSettings(); return; }
   document.getElementById('fileInput').click();
 }
 
@@ -1009,25 +1009,30 @@ async function analyzeRecipe() {
   startProcAnim();
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { inline_data: { mime_type: capture.mimeType, data: capture.base64 } },
-            { text: RECIPE_PROMPT }
-          ]}],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 3000 },
-        }),
-      }
-    );
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${aiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:${capture.mimeType};base64,${capture.base64}` } },
+            { type: 'text', text: RECIPE_PROMPT },
+          ],
+        }],
+        max_tokens: 3000,
+        temperature: 0.1,
+      }),
+    });
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || `API error ${res.status}`);
 
-    const rawText = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '')
+    const rawText = (data.choices?.[0]?.message?.content ?? '')
       .replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
 
     let recipe;
@@ -1338,7 +1343,7 @@ function updateNextBtn() {
    SETTINGS
 ════════════════════════════════════════════════ */
 function openSettings() {
-  document.getElementById('workerInput').value = geminiKey;
+  document.getElementById('workerInput').value = aiKey;
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -1351,7 +1356,7 @@ function bgClose(e) {
 }
 
 function saveSettings() {
-  geminiKey = document.getElementById('workerInput').value.trim();
+  aiKey = document.getElementById('workerInput').value.trim();
   persist();
   closeSettings();
   updateHome();
