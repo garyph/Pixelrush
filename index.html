@@ -1207,16 +1207,25 @@ function resizeImage(file, maxDim = 1600, q = 0.82) {
 /* ════════════════════════════════════════════════
    ANALYZE
 ════════════════════════════════════════════════ */
-const RECIPE_PROMPT = `You are parsing a HelloFresh recipe card photo.
+const RECIPE_PROMPT = `You are a validator and parser for HelloFresh recipe card photos.
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation.
 
+STEP 1 — VALIDATE: Look at the image carefully.
+Set "valid": true ONLY if the image clearly shows a printed HelloFresh recipe card with visible cooking steps and a list of ingredients.
+Set "valid": false if the image is anything else — a random photo, food, a person, a product, a screenshot, etc.
+Set "reject_reason" to a short human-readable explanation when valid is false (e.g. "This looks like a photo of a street, not a recipe card").
+
+STEP 2 — if valid is true, fill in the rest. If valid is false, you may leave the other fields as empty strings/arrays.
+
 CRITICAL RULE — NAME FIELD:
-You MUST invent a real descriptive culinary dish name by looking at the INGREDIENTS and COOKING METHOD.
-NEVER use "HelloFresh Recipe", "HelloFresh", or any text printed as a title on the card.
-Examples of good names: "Almond-Crusted Lemon Chicken with Herb Rice", "Smoky BBQ Pork Tacos", "Creamy Garlic Butter Salmon".
+Invent a real descriptive culinary dish name from the INGREDIENTS and COOKING METHOD.
+NEVER use "HelloFresh Recipe", "HelloFresh", or any card title text.
+Good examples: "Almond-Crusted Lemon Chicken with Herb Rice", "Smoky BBQ Pork Tacos".
 
 {
-  "name": "YOUR INVENTED DISH NAME based on ingredients + cooking method — absolutely NOT the card title",
+  "valid": true,
+  "reject_reason": "",
+  "name": "Invented dish name from ingredients — NOT the card title",
   "tagline": "Short subtitle e.g. 'with Herb Rice and Carrots'",
   "servings": "2",
   "totalTime": "45 min",
@@ -1228,7 +1237,7 @@ Examples of good names: "Almond-Crusted Lemon Chicken with Herb Rice", "Smoky BB
     "tasks": ["Clear single-action task", "Another task"]
   }]
 }
-Rules: include ALL steps on the card; break each into 4-8 single-action tasks; choose fitting emoji and soft pastel bg hex per step; time is null if not stated; add a useful tip per step.`;
+Rules (when valid): include ALL steps; break each into 4-8 single-action tasks; choose fitting emoji and soft pastel bg hex per step; time is null if not stated; add a useful tip per step.`;
 
 async function analyzeRecipe() {
   if (!capture) return;
@@ -1268,6 +1277,11 @@ async function analyzeRecipe() {
       const match = rawText.match(/\{[\s\S]*\}/);
       recipe = JSON.parse(match ? match[0] : rawText);
     } catch { throw new Error('Could not parse recipe — try a clearer photo'); }
+
+    if (recipe.valid === false) {
+      const reason = recipe.reject_reason || 'This doesn\'t look like a HelloFresh recipe card.';
+      throw new Error(`❌ ${reason} Please scan a HelloFresh recipe card.`);
+    }
 
     if (!recipe?.steps?.length) throw new Error('No recipe steps found — try a clearer photo');
 
