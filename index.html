@@ -853,11 +853,11 @@
 ════════════════════════════ -->
 <div class="screen active" id="s-home">
   <div class="hdr">
-    <div class="hdr-info">
+    <div class="hdr-info" id="hdrTapZone">
       <div class="hdr-label">Hello Fresh</div>
       <div class="hdr-title">Scan &amp; Cook</div>
     </div>
-    <button class="icon-btn" onclick="openSettings()" aria-label="Settings">⚙️</button>
+    <button class="icon-btn" onclick="openSettings()" aria-label="Settings" style="opacity:0;pointer-events:none;">⚙️</button>
   </div>
 
   <div class="scroll">
@@ -1676,6 +1676,15 @@ function esc(s) {
   }
   if (fixed) { persist(); updateHome(); }
 })();
+
+// Triple-tap the header title to open settings (hidden access)
+let hdrTapCount = 0, hdrTapTimer = null;
+document.getElementById('hdrTapZone').addEventListener('click', () => {
+  hdrTapCount++;
+  if (hdrTapCount >= 3) { hdrTapCount = 0; clearTimeout(hdrTapTimer); openSettings(); return; }
+  clearTimeout(hdrTapTimer);
+  hdrTapTimer = setTimeout(() => { hdrTapCount = 0; }, 600);
+});
 
 updateHome();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
