@@ -1271,26 +1271,24 @@ async function analyzeRecipe() {
 
     if (!recipe?.steps?.length) throw new Error('No recipe steps found — try a clearer photo');
 
-    // If the model returned a branded/generic name, generate a real one from ingredients
-    if (/hellofresh|recipe card|meal kit|hello fresh/i.test(recipe.name) || recipe.name.trim().length < 4) {
-      try {
-        const ingList = (recipe.ingredients || []).map(i => i.name).join(', ');
-        const stepNames = recipe.steps.map(s => s.name).join(', ');
-        const nameRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiKey}` },
-          body: JSON.stringify({
-            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-            messages: [{ role: 'user', content: `Give a single short culinary dish name (3–6 words) for a recipe with these ingredients: ${ingList}. Cooking steps include: ${stepNames}. Reply with ONLY the dish name, no punctuation, no explanation.` }],
-            max_tokens: 20,
-            temperature: 0.4,
-          }),
-        });
-        const nameData = await nameRes.json();
-        const generated = nameData.choices?.[0]?.message?.content?.trim();
-        if (generated && generated.length > 3) recipe.name = generated;
-      } catch { /* keep original if this fails */ }
-    }
+    // Always generate a proper dish name from a text-only call — vision model always sees the card title
+    try {
+      const ingList   = (recipe.ingredients || []).map(i => i.name).join(', ');
+      const stepNames = recipe.steps.map(s => s.name).join(', ');
+      const nameRes   = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiKey}` },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          messages: [{ role: 'user', content: `Ingredients: ${ingList}. Steps: ${stepNames}. Write ONLY a short culinary dish name (3-5 words) that describes this meal. No explanation, no punctuation at the end.` }],
+          max_tokens: 15,
+          temperature: 0.3,
+        }),
+      });
+      const nameData  = await nameRes.json();
+      const generated = nameData.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, '');
+      if (generated && generated.length > 3) recipe.name = generated;
+    } catch { /* keep vision model's name as fallback */ }
 
     stopProcAnim();
 
@@ -1639,6 +1637,32 @@ function esc(s) {
 /* ════════════════════════════════════════════════
    INIT
 ════════════════════════════════════════════════ */
+// Rename any saved recipes still carrying a branded name
+(async () => {
+  let fixed = false;
+  for (const r of savedRecipes) {
+    if (/hellofresh|recipe card|meal kit|hello fresh/i.test(r.recipe.name)) {
+      try {
+        const ingList   = (r.recipe.ingredients || []).map(i => i.name).join(', ');
+        const stepNames = r.recipe.steps.map(s => s.name).join(', ');
+        const res  = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiKey}` },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            messages: [{ role: 'user', content: `Ingredients: ${ingList}. Steps: ${stepNames}. Write ONLY a short culinary dish name (3-5 words). No explanation.` }],
+            max_tokens: 15, temperature: 0.3,
+          }),
+        });
+        const data = await res.json();
+        const name = data.choices?.[0]?.message?.content?.trim().replace(/^["']|["']$/g, '');
+        if (name && name.length > 3) { r.recipe.name = name; fixed = true; }
+      } catch { /* skip */ }
+    }
+  }
+  if (fixed) { persist(); updateHome(); }
+})();
+
 updateHome();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
