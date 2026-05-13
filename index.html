@@ -206,6 +206,40 @@
     }
     .pct-badge.done { background: #d8f3dc; color: var(--green); font-size: 18px; }
 
+    /* Swipe-to-delete wrapper */
+    .recipe-wrap {
+      position: relative;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .recipe-row {
+      margin-bottom: 0;
+      border-radius: 0;
+      box-shadow: none;
+      transition: transform 0.22s ease;
+      will-change: transform;
+    }
+
+    .recipe-del-btn {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 80px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .recipe-del-btn:active { background: #dc2626; }
+
     .empty {
       text-align: center;
       padding: 36px 20px;
@@ -848,16 +882,15 @@
 
     <!-- Key saved view -->
     <div id="keySetView" style="display:none">
-      <div style="display:flex;align-items:center;gap:12px;background:#f0fbf5;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
-        <span style="font-size:22px">🔑</span>
+      <div style="display:flex;align-items:center;gap:12px;background:#f0fbf5;border-radius:12px;padding:16px;margin-bottom:24px;">
+        <span style="font-size:26px">🔑</span>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:#2d6a4f">API Key saved</div>
-          <div style="font-size:12px;color:#777;margin-top:2px" id="keyHint"></div>
+          <div style="font-size:14px;font-weight:700;color:#2d6a4f">API Key active</div>
+          <div style="font-size:12px;color:#777;margin-top:3px" id="keyHint"></div>
         </div>
-        <span style="font-size:18px;color:#2d6a4f">✓</span>
+        <span style="font-size:20px;color:#2d6a4f">✓</span>
       </div>
-      <button class="modal-save" style="margin-bottom:10px" onclick="showChangeKey()">🔄 Change Key</button>
-      <button class="modal-cancel" onclick="closeSettings()">Done</button>
+      <button class="modal-cancel" style="background:#f0f0ec;border-radius:14px;padding:16px;font-weight:600;color:#555" onclick="closeSettings()">Done</button>
     </div>
 
     <!-- Key entry view -->
@@ -938,13 +971,16 @@ function updateHome() {
       ? `<img src="${r.thumb}" alt="">`
       : (r.recipe.steps[0]?.emoji || '🍜');
 
-    return `<div class="recipe-row" onclick="openRecipe('${r.id}')">
-      <div class="recipe-thumb">${thumb}</div>
-      <div class="recipe-row-info">
-        <div class="recipe-row-name">${esc(r.recipe.name)}</div>
-        <div class="recipe-row-meta">${esc(r.scannedAt)} · ${r.recipe.steps.length} steps</div>
+    return `<div class="recipe-wrap" id="wrap-${r.id}">
+      <div class="recipe-row" id="row-${r.id}" onclick="handleRowTap('${r.id}')">
+        <div class="recipe-thumb">${thumb}</div>
+        <div class="recipe-row-info">
+          <div class="recipe-row-name">${esc(r.recipe.name)}</div>
+          <div class="recipe-row-meta">${esc(r.scannedAt)} · ${r.recipe.steps.length} steps</div>
+        </div>
+        <div class="pct-badge ${fin ? 'done' : ''}">${fin ? '✓' : pct + '%'}</div>
       </div>
-      <div class="pct-badge ${fin ? 'done' : ''}">${fin ? '✓' : pct + '%'}</div>
+      <button class="recipe-del-btn" onclick="deleteRecipe('${r.id}')">🗑</button>
     </div>`;
   }).join('');
 }
@@ -1370,13 +1406,6 @@ function openSettings() {
   document.getElementById('settingsModal').classList.add('open');
 }
 
-function showChangeKey() {
-  document.getElementById('keySetView').style.display   = 'none';
-  document.getElementById('keyEntryView').style.display = 'block';
-  document.getElementById('workerInput').value = '';
-  document.getElementById('workerInput').focus();
-}
-
 function closeSettings() {
   document.getElementById('settingsModal').classList.remove('open');
 }
@@ -1395,6 +1424,74 @@ function saveSettings() {
 }
 
 /* ════════════════════════════════════════════════
+   SWIPE TO DELETE
+════════════════════════════════════════════════ */
+let _blockTap = false;
+
+function handleRowTap(id) {
+  if (_blockTap) { _blockTap = false; return; }
+  const row = document.getElementById(`row-${id}`);
+  if (row && _getTranslateX(row) < -5) {
+    row.style.transition = 'transform 0.22s ease';
+    row.style.transform = 'translateX(0)';
+    return;
+  }
+  openRecipe(id);
+}
+
+function deleteRecipe(id) {
+  savedRecipes = savedRecipes.filter(r => r.id !== id);
+  persist();
+  updateHome();
+}
+
+function _getTranslateX(el) {
+  const m = (el.style.transform || '').match(/translateX\((-?[\d.]+)/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+function initSwipe() {
+  const list = document.getElementById('recipeList');
+  const REVEAL = 80;
+  let startX = 0, startY = 0, dragging = null, currentDx = 0;
+
+  list.addEventListener('touchstart', e => {
+    _blockTap = false;
+    const wrap = e.target.closest('.recipe-wrap');
+    if (!wrap) return;
+    const row = wrap.querySelector('.recipe-row');
+    list.querySelectorAll('.recipe-row').forEach(r => {
+      if (r !== row) { r.style.transition = 'transform 0.22s ease'; r.style.transform = 'translateX(0)'; }
+    });
+    dragging = row;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    currentDx = 0;
+    if (dragging) dragging.style.transition = 'none';
+  }, { passive: true });
+
+  list.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    currentDx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dy) > Math.abs(currentDx) + 5) { dragging = null; return; }
+    dragging.style.transform = `translateX(${Math.max(-REVEAL, Math.min(0, currentDx))}px)`;
+  }, { passive: true });
+
+  list.addEventListener('touchend', () => {
+    if (!dragging) return;
+    dragging.style.transition = 'transform 0.22s ease';
+    if (currentDx < -(REVEAL / 2)) {
+      dragging.style.transform = `translateX(-${REVEAL}px)`;
+      _blockTap = true;
+    } else {
+      dragging.style.transform = 'translateX(0)';
+    }
+    dragging = null;
+  });
+}
+
+/* ════════════════════════════════════════════════
    UTILITIES
 ════════════════════════════════════════════════ */
 function esc(s) {
@@ -1406,6 +1503,7 @@ function esc(s) {
    INIT
 ════════════════════════════════════════════════ */
 updateHome();
+initSwipe();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
 </body>
