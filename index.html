@@ -1,503 +1,884 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>PixelDash</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#0a0a2a">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sweet Chili Pork · HelloFresh</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2d6a4f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        :root { --bg:#0a0a2a; --acc:#00ffcc; --red:#ff2266; --gold:#ffd700; }
-        *{ margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --green: #2d6a4f;
+      --green-mid: #40916c;
+      --green-light: #95d5b2;
+      --cream: #f7f5f0;
+      --white: #ffffff;
+      --text: #1a1a1a;
+      --muted: #777;
+      --border: #ece8e0;
+      --radius: 18px;
+      --shadow: 0 2px 16px rgba(0,0,0,0.07);
+    }
 
-        body {
-            font-family:'Press Start 2P',system-ui;
-            background:var(--bg);
-            color:var(--acc);
-            text-align:center;
-            overflow:hidden;
-            height:100vh;
-            display:flex;
-            flex-direction:column;
-            touch-action:manipulation;
-        }
+    html, body { height: 100%; }
 
-        header {
-            padding:12px;
-            background:#111133;
-            border-bottom:4px solid var(--acc);
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            flex-shrink:0;
-        }
-        h1{ font-size:1.4rem; text-shadow:0 0 10px var(--acc); flex:1; text-align:center; }
-        .header-score{ font-size:.55rem; color:#aaffee; line-height:1.8; text-align:right; min-width:130px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--cream);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100%;
+    }
 
-        #game-container{
-            flex:1; display:flex; justify-content:center; align-items:center;
-            position:relative; overflow:hidden;
-        }
-        canvas{
-            image-rendering:pixelated;
-            border:6px solid var(--acc);
-            box-shadow:0 0 30px rgba(0,255,204,.5);
-            max-width:100%; height:auto;
-        }
+    /* ── Header ── */
+    header {
+      background: var(--green);
+      color: #fff;
+      padding: 16px 20px 14px;
+      padding-top: calc(16px + env(safe-area-inset-top));
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
 
-        #ui{
-            position:absolute; top:12px; left:14px;
-            text-align:left; font-size:.75rem; pointer-events:none;
-            line-height:1.9;
-        }
+    .hf-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      opacity: 0.65;
+      margin-bottom: 4px;
+    }
 
-        /* ── Overlay panels ── */
-        .overlay{
-            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-            background:rgba(10,10,42,.97); padding:24px 28px;
-            border:4px solid var(--acc); box-shadow:0 0 40px var(--acc);
-            display:none; flex-direction:column; gap:14px;
-            max-width:92vw; width:480px; max-height:90vh; overflow-y:auto;
-        }
-        .overlay.show{ display:flex; }
+    .recipe-name {
+      font-size: 20px;
+      font-weight: 800;
+    }
 
-        /* ── Buttons ── */
-        button{
-            font-family:'Press Start 2P',system-ui;
-            background:#111133; color:var(--acc); border:3px solid var(--acc);
-            padding:12px 24px; font-size:.85rem; cursor:pointer;
-            transition:.1s;
-        }
-        button:active{ background:var(--acc); color:var(--bg); transform:scale(.97); }
-        .btn-red{ border-color:var(--red); color:var(--red); }
-        .btn-red:active{ background:var(--red); color:#fff; }
+    .recipe-tagline {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
 
-        /* ── Leaderboard ── */
-        .lb-title{
-            font-size:.65rem; letter-spacing:2px; color:var(--gold);
-            text-shadow:0 0 8px var(--gold); border-bottom:2px solid var(--gold);
-            padding-bottom:8px; margin-bottom:4px;
-        }
-        .lb-table{ width:100%; border-collapse:collapse; font-size:.52rem; }
-        .lb-table th{
-            color:#888; padding:5px 6px; text-align:left;
-            border-bottom:1px solid #334; font-size:.44rem; letter-spacing:1px;
-        }
-        .lb-table td{ padding:6px 6px; border-bottom:1px solid #1a1a44; }
-        .lb-table tr:last-child td{ border-bottom:none; }
-        .lb-rank{ color:#555; width:24px; }
-        .lb-name{ color:var(--acc); }
-        .lb-score{ color:var(--gold); text-align:right; }
-        .lb-date{ color:#445; text-align:right; font-size:.40rem; }
-        .lb-highlight td{ background:rgba(0,255,204,.08); }
-        .lb-highlight .lb-name{ color:var(--gold); text-shadow:0 0 6px var(--gold); }
-        .lb-empty{ color:#334; font-size:.5rem; padding:12px 0; }
+    /* ── Progress bar ── */
+    .progress-wrap {
+      background: var(--green);
+      padding: 0 20px 14px;
+      display: none;
+    }
+    .progress-wrap.visible { display: block; }
 
-        .rank-badge{
-            font-size:1.1rem; color:var(--gold);
-            text-shadow:0 0 12px var(--gold); text-align:center;
-        }
+    .progress-segments {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 7px;
+    }
 
-        /* ── Name entry ── */
-        #name-modal{
-            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-            background:rgba(10,10,42,.99); padding:28px 32px;
-            border:4px solid var(--gold); box-shadow:0 0 50px var(--gold);
-            display:none; flex-direction:column; gap:16px; align-items:center;
-            z-index:200; max-width:92vw; width:400px;
-        }
-        #name-modal.show{ display:flex; }
-        #name-modal h2{ font-size:.85rem; color:var(--gold); }
-        #name-modal p{ font-size:.48rem; color:#aaa; }
-        #name-input{
-            font-family:'Press Start 2P',system-ui;
-            background:#0a0a2a; color:var(--acc);
-            border:3px solid var(--acc); padding:12px 16px;
-            font-size:1.1rem; text-align:center; width:100%;
-            letter-spacing:6px; text-transform:uppercase;
-            max-width:240px; outline:none;
-        }
-        #name-input:focus{ border-color:var(--gold); box-shadow:0 0 12px var(--gold); }
-        .name-error{ font-size:.42rem; color:var(--red); min-height:14px; }
-        .name-btns{ display:flex; gap:12px; }
+    .seg {
+      height: 5px;
+      flex: 1;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.2);
+      transition: background 0.35s ease;
+    }
+    .seg.done    { background: rgba(255,255,255,0.85); }
+    .seg.current { background: var(--green-light); }
 
-        /* ── Games played footer ── */
-        #footer-bar{
-            background:#080820; border-top:3px solid #1a1a44;
-            padding:8px 16px; font-size:.44rem; color:#334;
-            display:flex; justify-content:space-between; align-items:center;
-            flex-shrink:0; letter-spacing:1px;
-        }
-        #footer-bar .played{
-            color:#3355aa; transition:color .4s;
-        }
-        #footer-bar .played.tick{ color:var(--acc); }
-        .footer-link{ color:#1a1a44; font-size:.38rem; }
+    .progress-text {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      text-align: right;
+    }
 
-        /* ── Loading spinner ── */
-        .lb-loading{ color:#334; font-size:.44rem; padding:10px 0; }
+    /* ── Main scroll area ── */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 16px 120px;
+      scroll-behavior: smooth;
+    }
 
-        @keyframes pulse {
-            0%,100%{ opacity:1; } 50%{ opacity:.4; }
-        }
-        .lb-loading{ animation:pulse 1.2s ease-in-out infinite; }
+    /* ── Screen visibility ── */
+    .screen { display: none; }
+    .screen.active { display: block; }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar{ width:4px; } ::-webkit-scrollbar-thumb{ background:#1a1a44; }
-    </style>
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .screen.active { animation: fadeSlide 0.28s ease; }
+
+    /* ══════════════════════════════
+       WELCOME SCREEN
+    ══════════════════════════════ */
+    .welcome-hero {
+      text-align: center;
+      padding: 28px 0 24px;
+    }
+
+    .hero-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      margin: 0 auto 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 60px;
+      background: linear-gradient(135deg, #d8f3dc, #b7e4c7);
+      box-shadow: 0 6px 24px rgba(45,106,79,0.2);
+    }
+
+    .welcome-title {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .welcome-sub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .info-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .info-chip {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: 30px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* Ingredients card */
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      padding: 13px 18px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ingredient-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 6px 0;
+    }
+
+    .ingredient {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ingredient:nth-last-child(1),
+    .ingredient:nth-last-child(2) { border-bottom: none; }
+
+    .ingredient-icon { font-size: 20px; }
+
+    /* Step overview list */
+    .step-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .step-row:last-child { border-bottom: none; }
+    .step-row:active { background: #f5f5f5; }
+
+    .step-icon-wrap {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+    }
+
+    .step-row-info { flex: 1; }
+    .step-row-name { font-size: 15px; font-weight: 600; }
+    .step-row-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .step-row-time { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+    /* ══════════════════════════════
+       STEP SCREEN
+    ══════════════════════════════ */
+    .step-hero {
+      border-radius: var(--radius);
+      padding: 28px 20px 22px;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .step-big-icon {
+      font-size: 80px;
+      line-height: 1;
+      display: block;
+      margin-bottom: 14px;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.12));
+    }
+
+    .step-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      opacity: 0.55;
+      margin-bottom: 6px;
+    }
+
+    .step-heading {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+
+    .badge-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .badge {
+      padding: 5px 13px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(0,0,0,0.08);
+    }
+
+    .step-tip {
+      font-size: 13px;
+      opacity: 0.65;
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    /* Substep list */
+    .substep-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 15px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .substep-row:last-child { border-bottom: none; }
+    .substep-row:active { background: #f5f5f5; }
+    .substep-row.checked { background: #f0fbf5; }
+
+    .check-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2.5px solid #ccc;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      margin-top: 1px;
+    }
+
+    .substep-row.checked .check-circle {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .check-mark {
+      color: white;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      display: none;
+    }
+    .substep-row.checked .check-mark { display: block; }
+
+    .substep-text {
+      font-size: 15px;
+      line-height: 1.55;
+      flex: 1;
+      padding-top: 3px;
+      transition: color 0.2s;
+    }
+    .substep-row.checked .substep-text {
+      color: #aaa;
+      text-decoration: line-through;
+      text-decoration-color: #bbb;
+    }
+
+    /* All-done banner */
+    .all-done-banner {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: #d8f3dc;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--green);
+    }
+    .all-done-banner.visible { display: flex; }
+    .all-done-banner span:first-child { font-size: 22px; }
+
+    /* ══════════════════════════════
+       COMPLETE SCREEN
+    ══════════════════════════════ */
+    .complete-wrap {
+      text-align: center;
+      padding: 40px 20px 20px;
+    }
+
+    .trophy { font-size: 90px; display: block; margin-bottom: 20px; }
+
+    .complete-title {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--green);
+      margin-bottom: 10px;
+    }
+
+    .complete-sub {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    .serving-tip {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .serving-tip-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .serving-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .serving-item:last-child { border-bottom: none; }
+    .serving-item-icon { font-size: 22px; }
+
+    .restart-btn {
+      width: 100%;
+      background: transparent;
+      color: var(--green);
+      border: 2px solid var(--green);
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .restart-btn:active { background: #f0fbf5; }
+
+    /* ── Fixed bottom button ── */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      padding: 10px 16px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, var(--cream) 70%, transparent);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .next-btn {
+      width: 100%;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 16px;
+      padding: 18px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      pointer-events: all;
+      transition: transform 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 4px 18px rgba(45,106,79,0.32);
+      letter-spacing: 0.2px;
+    }
+
+    .next-btn:disabled {
+      background: #d0cec9;
+      color: #999;
+      box-shadow: none;
+      cursor: default;
+    }
+
+    .next-btn:not(:disabled):active { transform: scale(0.98); }
+  </style>
 </head>
 <body>
 
 <header>
-    <div style="min-width:130px;font-size:.5rem;color:#3a5a5a;text-align:left;">
-        PWA · GLOBAL
-    </div>
-    <h1>PIXELDASH</h1>
-    <div class="header-score">
-        SCORE <span id="score">0</span><br>
-        BEST &nbsp;<span id="high">0</span>
-    </div>
+  <div class="hf-label">Hello Fresh</div>
+  <div class="recipe-name">Sweet Chili Pork</div>
+  <div class="recipe-tagline">with Candied Peanuts &amp; Lime Rice</div>
 </header>
 
-<div id="game-container">
-    <canvas id="game" width="800" height="400"></canvas>
-
-    <div id="ui">
-        SCORE: <span id="score2">0</span>
-    </div>
-
-    <!-- ── Start screen ── -->
-    <div id="start-screen" class="overlay show">
-        <h2 style="font-size:1rem;">READY?</h2>
-        <p style="font-size:.48rem;color:#aaa;">SPACE / TAP to jump<br>Avoid the obstacles!</p>
-        <button onclick="startGame()">▶ START</button>
-
-        <div class="lb-title">🏆 GLOBAL TOP 10</div>
-        <div id="lb-start"><div class="lb-loading">LOADING…</div></div>
-        <div class="lb-empty" id="lb-start-empty" style="display:none">No scores yet — be the first!</div>
-    </div>
-
-    <!-- ── Game Over screen ── -->
-    <div id="game-over" class="overlay">
-        <h2 style="font-size:1rem;color:var(--red);">GAME OVER</h2>
-        <div style="font-size:1rem;color:var(--gold);">SCORE: <span id="final-score">0</span></div>
-        <div id="rank-banner" class="rank-badge" style="display:none;"></div>
-
-        <div class="lb-title">🏆 GLOBAL TOP 10</div>
-        <div id="lb-over"><div class="lb-loading">LOADING…</div></div>
-
-        <button onclick="restartGame()">▶ PLAY AGAIN</button>
-    </div>
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-segments" id="progressSegs"></div>
+  <div class="progress-text" id="progressText"></div>
 </div>
 
-<!-- ── Name entry modal ── -->
-<div id="name-modal">
-    <h2>🏆 TOP 10!</h2>
-    <p>YOU SCORED <span id="modal-score" style="color:var(--gold);"></span></p>
-    <p style="margin-top:4px;">ENTER YOUR NAME</p>
-    <input id="name-input" type="text" maxlength="7" placeholder="AAA" autocomplete="off" autocorrect="off" spellcheck="false">
-    <div class="name-error" id="name-error"></div>
-    <div class="name-btns">
-        <button onclick="submitScore()" style="font-size:.65rem;">✓ SUBMIT</button>
-        <button class="btn-red" onclick="skipName()" style="font-size:.65rem;">✕ SKIP</button>
-    </div>
-    <div style="font-size:.38rem;color:#334;">7 CHARS MAX · LETTERS &amp; NUMBERS</div>
-</div>
+<main id="main">
 
-<!-- ── Footer ── -->
-<div id="footer-bar">
-    <span class="played">🎮 GAMES PLAYED GLOBALLY: <span id="games-played">—</span></span>
-    <span class="footer-link">PIXELDASH · GLOBAL LEADERBOARD</span>
+  <!-- ── Welcome ── -->
+  <div class="screen active" id="screen-welcome">
+    <div class="welcome-hero">
+      <div class="hero-img">🍜</div>
+      <div class="welcome-title">Let's Cook!</div>
+      <div class="welcome-sub">A spicy, sweet &amp; umami mix.<br>Ready in about 45 minutes.</div>
+      <div class="info-row">
+        <span class="info-chip">⏱ ~45 min</span>
+        <span class="info-chip">🍽 2 servings</span>
+        <span class="info-chip">6 steps</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Ingredients</div>
+      <div class="ingredient-list">
+        <div class="ingredient"><span class="ingredient-icon">🥩</span>Ground pork</div>
+        <div class="ingredient"><span class="ingredient-icon">🍚</span>White rice</div>
+        <div class="ingredient"><span class="ingredient-icon">🫑</span>Bell pepper</div>
+        <div class="ingredient"><span class="ingredient-icon">🧅</span>Onion</div>
+        <div class="ingredient"><span class="ingredient-icon">🥜</span>Peanuts</div>
+        <div class="ingredient"><span class="ingredient-icon">🍋</span>Lime</div>
+        <div class="ingredient"><span class="ingredient-icon">🌿</span>Cilantro</div>
+        <div class="ingredient"><span class="ingredient-icon">🧈</span>Butter</div>
+        <div class="ingredient"><span class="ingredient-icon">🫙</span>Sweet soy glaze</div>
+        <div class="ingredient"><span class="ingredient-icon">🌶️</span>Chili sauce</div>
+        <div class="ingredient"><span class="ingredient-icon">🧂</span>Salt &amp; pepper</div>
+        <div class="ingredient"><span class="ingredient-icon">🍬</span>Sugar (1 tsp)</div>
+      </div>
+    </div>
+
+    <div class="card" id="stepsOverview"></div>
+  </div>
+
+  <!-- ── Step screens inserted by JS ── -->
+
+  <!-- ── Complete ── -->
+  <div class="screen" id="screen-complete">
+    <div class="complete-wrap">
+      <span class="trophy">🏆</span>
+      <div class="complete-title">Bon appétit!</div>
+      <div class="complete-sub">Your Sweet Chili Pork is ready.<br>Time to eat — you earned it!</div>
+
+      <div class="serving-tip">
+        <div class="serving-tip-title">Serving tips</div>
+        <div class="serving-item">
+          <span class="serving-item-icon">🍜</span>
+          Spoon the pork mixture over the buttery lime rice
+        </div>
+        <div class="serving-item">
+          <span class="serving-item-icon">🥜</span>
+          Scatter candied peanuts on top for crunch
+        </div>
+        <div class="serving-item">
+          <span class="serving-item-icon">🌿</span>
+          Finish with cilantro and a lime wedge squeeze
+        </div>
+        <div class="serving-item">
+          <span class="serving-item-icon">🌶️</span>
+          Extra chili sauce on the side for heat lovers
+        </div>
+      </div>
+
+      <button class="restart-btn" onclick="resetRecipe()">↩ Cook it again</button>
+    </div>
+  </div>
+
+</main>
+
+<div class="bottom-bar">
+  <button class="next-btn" id="nextBtn" onclick="handleNext()">Start Cooking →</button>
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════════════
-//  CONFIG — replace with your Cloudflare Worker URL after deploy
-// ══════════════════════════════════════════════════════════════
-const API = 'https://YOUR-WORKER.YOUR-ACCOUNT.workers.dev';
-// Example: 'https://pixeldash-leaderboard.gary123.workers.dev'
+const STEPS = [
+  {
+    name: "Prep",
+    emoji: "🔪",
+    bg: "#e8f5e9",
+    accent: "#2e7d32",
+    time: null,
+    tip: "Get everything prepped before the heat goes on — it makes cooking much easier.",
+    tasks: [
+      "Wash and dry all produce",
+      "Halve, core, and thinly slice the bell pepper into strips",
+      "Halve, peel, and thinly slice the onion",
+      "Zest the lime with a grater, then quarter it",
+      "Finely chop the cilantro leaves"
+    ]
+  },
+  {
+    name: "Cook Rice",
+    emoji: "🍚",
+    bg: "#fff8e1",
+    accent: "#e65100",
+    time: "15–18 min",
+    tip: "Resist lifting the lid — the trapped steam is what cooks the rice perfectly.",
+    tasks: [
+      "Measure rice into a small pot",
+      "Add 1¾ cups water (2¼ cups for 4 servings) and a big pinch of salt",
+      "Bring to a boil over high heat",
+      "Cover tightly and reduce to the lowest simmer",
+      "Cook without lifting lid until tender, 15–18 minutes",
+      "Remove from heat and keep covered until ready to serve"
+    ]
+  },
+  {
+    name: "Candy Peanuts",
+    emoji: "🥜",
+    bg: "#fce4ec",
+    accent: "#b71c1c",
+    time: "3–5 min",
+    tip: "Keep stirring — the sugar can burn in seconds once the water is gone.",
+    tasks: [
+      "Heat a large nonstick pan over medium-high heat (no oil needed)",
+      "Add peanuts, 2 TBSP water, and 1 tsp sugar (2 tsp for 4 servings)",
+      "Stir frequently as water bubbles and evaporates",
+      "Keep cooking until sugar coats the peanuts and they're lightly toasted, 3–5 min",
+      "Turn off heat and immediately transfer peanuts to a small bowl",
+      "Wipe out the pan with a folded paper towel"
+    ]
+  },
+  {
+    name: "Cook Veggies",
+    emoji: "🫑",
+    bg: "#e8f5e9",
+    accent: "#1b5e20",
+    time: "6–9 min",
+    tip: "Medium-high heat gives the veggies caramelized edges without turning mushy.",
+    tasks: [
+      "Add a generous drizzle of oil to the wiped-out pan over medium-high heat",
+      "Add the sliced bell pepper and onion",
+      "Season well with salt and pepper",
+      "Cook, stirring occasionally, until veggies are tender and lightly browned",
+      "This should take 6–9 minutes",
+      "Transfer veggies to a plate and set aside"
+    ]
+  },
+  {
+    name: "Cook Pork",
+    emoji: "🥩",
+    bg: "#fff3e0",
+    accent: "#bf360c",
+    time: "5–8 min",
+    tip: "Press it flat and leave it alone — that undisturbed time builds the sear.",
+    tasks: [
+      "Add another drizzle of oil to the same pan over medium-high heat",
+      "Add the ground pork and season with salt and pepper",
+      "Press into a flat even layer with a spatula",
+      "Cook undisturbed until bottom is browned, 3–4 minutes",
+      "Break the meat into pieces and cook through, 2–4 minutes more",
+      "Add the cooked veggies back in and stir to combine",
+      "Pour in the sweet soy glaze, chili sauce, and 1 TBSP butter (2 TBSP for 4)",
+      "Stir and cook until everything is glossy and coated, 1–2 minutes"
+    ]
+  },
+  {
+    name: "Finish & Serve",
+    emoji: "🍜",
+    bg: "#e8eaf6",
+    accent: "#283593",
+    time: null,
+    tip: "Taste as you plate — a little extra lime zest or salt makes it pop.",
+    tasks: [
+      "Fluff the cooked rice with a fork",
+      "Stir in 1 TBSP butter (2 TBSP for 4 servings) until melted",
+      "Add lime zest to taste and season with salt",
+      "Divide the rice between serving bowls",
+      "Spoon the pork mixture over the rice",
+      "Top with candied peanuts and chopped cilantro",
+      "Serve with lime wedges on the side"
+    ]
+  }
+];
 
-// ── Bad word client-side check (Worker also checks) ──────────
-const BAD_WORDS = ['fuck','shit','cunt','ass','bitch','dick','cock','pussy',
-  'nigger','nigga','fag','faggot','whore','slut','bastard','rape','kill','nazi','xxx'];
-function hasBadWord(str) {
-    const s = str.toLowerCase().replace(/[^a-z0-9]/g,'');
-    return BAD_WORDS.some(w => s.includes(w));
+let current = -1; // -1 = welcome
+let states  = STEPS.map(s => s.tasks.map(() => false));
+
+// Persist progress
+function save() {
+  try { localStorage.setItem('hf-scp', JSON.stringify({ current, states })); } catch {}
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('hf-scp') || 'null');
+    if (d && Array.isArray(d.states)) { current = d.current ?? -1; states = d.states; }
+  } catch {}
 }
 
-// ── State ─────────────────────────────────────────────────────
-let score       = 0;
-let highScore   = parseInt(localStorage.getItem('pdHigh') || '0');
-let gameRunning = false;
-let gameSpeed   = 4;
-let pendingScore= 0;   // score waiting for name entry
-let currentBoard= [];  // cached leaderboard
-
-const canvas = document.getElementById('game');
-const ctx    = canvas.getContext('2d');
-
-document.getElementById('high').textContent  = highScore;
-
-let player    = { x:100, y:300, width:40, height:40, vy:0, jumping:false };
-const gravity  = 0.8, jumpPower = -18, groundY = 340;
-let obstacles = [], lastObstacle = 0, clouds = [];
-
-for (let i=0;i<6;i++) clouds.push({x:Math.random()*800,y:60+Math.random()*80,size:30+Math.random()*40});
-
-// ── Audio ─────────────────────────────────────────────────────
-let audioCtx, musicInterval;
-function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }
-function playSound(freq,dur,type='sine',vol=0.3) {
-    initAudio();
-    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.type=type; o.frequency.value=freq; g.gain.value=vol;
-    o.connect(g).connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime+dur);
-}
-function jumpSound()    { playSound(600,.08,'square',.4); setTimeout(()=>playSound(900,.1,'square',.3),40); }
-function scoreSound()   { playSound(800,.05,'sine',.3); setTimeout(()=>playSound(1200,.05,'sine',.3),60); }
-function gameOverSound(){ let f=400; const iv=setInterval(()=>{ playSound(f,.1,'sawtooth',.4); f*=.85; if(f<100)clearInterval(iv); },80); }
-function successSound() { [600,800,1000,1400].forEach((f,i)=>setTimeout(()=>playSound(f,.1,'sine',.3),i*80)); }
-function startMusic()   { initAudio(); let n=0; const mel=[220,330,440,330,550,440]; musicInterval=setInterval(()=>{ if(!gameRunning)return; playSound(mel[n++%mel.length],.2,'triangle',.08); },320); }
-function stopMusic()    { if(musicInterval)clearInterval(musicInterval); }
-
-// ── Drawing ───────────────────────────────────────────────────
-function drawBackground() {
-    const gr=ctx.createLinearGradient(0,0,0,400);
-    gr.addColorStop(0,'#1a1a4d'); gr.addColorStop(1,'#0a0a2a');
-    ctx.fillStyle=gr; ctx.fillRect(0,0,800,400);
-    ctx.fillStyle='white';
-    for(let i=0;i<30;i++) ctx.fillRect((i*47)%800,(i*31)%180,2,2);
-    ctx.fillStyle='#aaaaaa';
-    clouds.forEach(c=>{
-        ctx.globalAlpha=.6;
-        ctx.fillRect(c.x,c.y,c.size,20);
-        ctx.fillRect(c.x+15,c.y-10,c.size*.8,25);
-        ctx.fillRect(c.x+35,c.y+5,c.size*.6,18);
-        c.x-=.5; if(c.x<-100) c.x=850;
-    });
-    ctx.globalAlpha=1;
-    ctx.fillStyle='#1a3a1a'; ctx.fillRect(0,groundY,800,60);
-}
-function drawPlayer() {
-    ctx.save(); ctx.translate(player.x+20,player.y+20);
-    ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillRect(-15,25,30,10);
-    ctx.fillStyle='#00ffcc'; ctx.fillRect(-20,-20,40,40);
-    ctx.fillStyle='#000'; ctx.fillRect(-12,-8,8,8); ctx.fillRect(4,-8,8,8);
-    ctx.fillStyle='#fff'; ctx.fillRect(-10,-6,4,4); ctx.fillRect(6,-6,4,4);
-    ctx.restore();
-}
-function drawObstacle(o) {
-    ctx.fillStyle='#ff2266'; ctx.fillRect(o.x,o.y,o.width,o.height);
-    ctx.fillStyle='#ff88aa';
-    ctx.beginPath(); ctx.moveTo(o.x+10,o.y); ctx.lineTo(o.x+o.width/2,o.y-15); ctx.lineTo(o.x+o.width-10,o.y); ctx.fill();
+// ── Build welcome steps overview ──
+function buildOverview() {
+  const el = document.getElementById('stepsOverview');
+  el.innerHTML = '<div class="card-header">Recipe Steps</div>' +
+    STEPS.map((s, i) => `
+      <div class="step-row" onclick="jumpToStep(${i})">
+        <div class="step-icon-wrap" style="background:${s.bg}">${s.emoji}</div>
+        <div class="step-row-info">
+          <div class="step-row-name">${s.name}</div>
+          <div class="step-row-meta">${s.tasks.length} tasks</div>
+        </div>
+        ${s.time ? `<div class="step-row-time">⏱ ${s.time}</div>` : ''}
+      </div>
+    `).join('');
 }
 
-// ── Game loop ─────────────────────────────────────────────────
-function update() {
-    if (!gameRunning) return;
-    player.vy += gravity; player.y += player.vy;
-    if (player.y >= groundY - player.height) { player.y=groundY-player.height; player.vy=0; player.jumping=false; }
-    if (Date.now()-lastObstacle > 1100) {
-        const h=40+Math.random()*60;
-        obstacles.push({x:850,y:groundY-h,width:35,height:h});
-        lastObstacle=Date.now();
-    }
-    for (let i=obstacles.length-1;i>=0;i--) {
-        const o=obstacles[i];
-        o.x -= gameSpeed+(score/40);
-        if (player.x<o.x+o.width && player.x+player.width>o.x && player.y<o.y+o.height && player.y+player.height>o.y) { endGame(); return; }
-        if (o.x<-50) {
-            obstacles.splice(i,1); score+=10;
-            document.getElementById('score').textContent  = score;
-            document.getElementById('score2').textContent = score;
-            if (score%100===0) scoreSound();
-        }
-    }
-    if (score%150===0 && score>0) gameSpeed=Math.min(8,gameSpeed+.1);
-}
-function draw() { ctx.clearRect(0,0,800,400); drawBackground(); drawPlayer(); obstacles.forEach(drawObstacle); }
-function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+// ── Build step screens ──
+function buildStepScreens() {
+  const main = document.getElementById('main');
+  const completeEl = document.getElementById('screen-complete');
 
-// ── Controls ──────────────────────────────────────────────────
-function jump() {
-    if (!player.jumping && gameRunning) { player.vy=jumpPower; player.jumping=true; jumpSound(); }
-}
-document.addEventListener('keydown', e => { if(e.code==='Space'){e.preventDefault(); jump();} });
-canvas.addEventListener('touchstart', e => { e.preventDefault(); jump(); });
-canvas.addEventListener('click', jump);
+  STEPS.forEach((s, si) => {
+    const div = document.createElement('div');
+    div.className = 'screen';
+    div.id = `screen-step-${si}`;
 
-// ── Game control ──────────────────────────────────────────────
-function startGame() {
-    hide('start-screen'); hide('game-over'); hide('name-modal');
-    gameRunning=true; score=0; gameSpeed=4; obstacles=[];
-    player.y=groundY-player.height; player.vy=0; player.jumping=false;
-    document.getElementById('score').textContent='0';
-    document.getElementById('score2').textContent='0';
-    lastObstacle=0;
-    startMusic();
-    incrementGamesPlayed();
-}
+    const tasksHTML = s.tasks.map((text, ti) => `
+      <div class="substep-row" id="t-${si}-${ti}" onclick="toggle(${si},${ti})">
+        <div class="check-circle">
+          <span class="check-mark">✓</span>
+        </div>
+        <div class="substep-text">${text}</div>
+      </div>
+    `).join('');
 
-function restartGame() {
-    hide('game-over'); startGame();
+    div.innerHTML = `
+      <div class="step-hero" style="background:${s.bg};color:${s.accent}">
+        <span class="step-big-icon">${s.emoji}</span>
+        <div class="step-label">Step ${si + 1} of ${STEPS.length}</div>
+        <div class="step-heading">${s.name}</div>
+        <div class="badge-row">
+          ${s.time ? `<span class="badge">⏱ ${s.time}</span>` : ''}
+          <span class="badge">${s.tasks.length} tasks</span>
+        </div>
+        <div class="step-tip">💡 ${s.tip}</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">What to do</div>
+        ${tasksHTML}
+      </div>
+
+      <div class="all-done-banner" id="done-${si}">
+        <span>✅</span>
+        <span>All done! Tap the button below to continue.</span>
+      </div>
+    `;
+
+    main.insertBefore(div, completeEl);
+  });
 }
 
-async function endGame() {
-    gameRunning=false; stopMusic(); gameOverSound();
-    if (score>highScore) {
-        highScore=score;
-        localStorage.setItem('pdHigh',highScore);
-        document.getElementById('high').textContent=highScore;
-    }
-    document.getElementById('final-score').textContent=score;
-
-    // Refresh leaderboard
-    const board = await fetchBoard();
-
-    // Is this score a top-10?
-    const qualifies = isTopTen(score, board);
-    if (qualifies) {
-        pendingScore=score;
-        document.getElementById('modal-score').textContent=score;
-        hide('game-over');
-        show('name-modal');
-        document.getElementById('name-input').value='';
-        document.getElementById('name-error').textContent='';
-        setTimeout(()=>document.getElementById('name-input').focus(),100);
-    } else {
-        showGameOver(board, null);
-    }
+// ── Toggle a task ──
+function toggle(si, ti) {
+  states[si][ti] = !states[si][ti];
+  const row = document.getElementById(`t-${si}-${ti}`);
+  row.classList.toggle('checked', states[si][ti]);
+  afterToggle(si);
+  save();
 }
 
-function isTopTen(s, board) {
-    if (!board || board.length < 10) return s > 0;
-    return s > board[board.length-1].score;
+function afterToggle(si) {
+  const done = states[si].every(Boolean);
+  document.getElementById(`done-${si}`).classList.toggle('visible', done);
+  updateProgress();
+  updateBtn();
 }
 
-function showGameOver(board, highlightName) {
-    renderBoard('lb-over', board, highlightName);
-    const banner=document.getElementById('rank-banner');
-    if (highlightName) {
-        const rank=board.findIndex(e=>e.name===highlightName && e.score===pendingScore)+1;
-        if(rank>0){banner.textContent=`🏆 RANK #${rank} — ${highlightName}`;banner.style.display='block';}
-    } else { banner.style.display='none'; }
-    show('game-over');
+// ── Jump to a step from overview ──
+function jumpToStep(si) {
+  current = si;
+  render();
+  save();
 }
 
-// ── Name entry ────────────────────────────────────────────────
-document.getElementById('name-input').addEventListener('keydown', e => {
-    if (e.key==='Enter') submitScore();
-});
-document.getElementById('name-input').addEventListener('input', e => {
-    // Force uppercase, allow alphanumeric + _ - .
-    e.target.value = e.target.value.replace(/[^A-Za-z0-9_\-\.]/g,'').toUpperCase().slice(0,7);
-});
-
-async function submitScore() {
-    const raw  = document.getElementById('name-input').value.trim().toUpperCase();
-    const errEl= document.getElementById('name-error');
-
-    if (!raw) { errEl.textContent='Enter a name!'; return; }
-    if (hasBadWord(raw)) { errEl.textContent='Choose a different name.'; return; }
-
-    errEl.textContent='';
-    const btn=document.querySelector('#name-modal button');
-    btn.textContent='…'; btn.disabled=true;
-
-    try {
-        const res  = await fetch(`${API}/api/score`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({name:raw, score:pendingScore}),
-        });
-        const data = await res.json();
-        if (!res.ok) { errEl.textContent=data.error||'Server error'; btn.textContent='✓ SUBMIT'; btn.disabled=false; return; }
-
-        currentBoard=data.board||[];
-        successSound();
-        hide('name-modal');
-        showGameOver(currentBoard, raw);
-    } catch {
-        // Fallback: save locally only
-        errEl.textContent='Offline — score saved locally';
-        setTimeout(()=>{ hide('name-modal'); showGameOver(currentBoard, null); }, 1500);
-    }
-    btn.textContent='✓ SUBMIT'; btn.disabled=false;
+// ── Restore checked state for a step ──
+function restoreStep(si) {
+  states[si].forEach((checked, ti) => {
+    const row = document.getElementById(`t-${si}-${ti}`);
+    if (row) row.classList.toggle('checked', checked);
+  });
+  const done = states[si].every(Boolean);
+  document.getElementById(`done-${si}`)?.classList.toggle('visible', done);
 }
 
-function skipName() {
-    hide('name-modal');
-    showGameOver(currentBoard, null);
+// ── Progress bar ──
+function updateProgress() {
+  const wrap = document.getElementById('progressWrap');
+  const segs  = document.getElementById('progressSegs');
+  const text  = document.getElementById('progressText');
+
+  if (current < 0) { wrap.classList.remove('visible'); return; }
+  wrap.classList.add('visible');
+
+  segs.innerHTML = STEPS.map((_, i) => {
+    let cls = 'seg';
+    if (i < current)      cls += ' done';
+    else if (i === current) cls += ' current';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  if (current < STEPS.length) {
+    const done  = states[current].filter(Boolean).length;
+    const total = states[current].length;
+    text.textContent = `Step ${current + 1} / ${STEPS.length} · ${done} of ${total} tasks done`;
+  } else {
+    text.textContent = 'All steps complete!';
+  }
 }
 
-// ── API calls ─────────────────────────────────────────────────
-async function fetchBoard() {
-    try {
-        const res  = await fetch(`${API}/api/board`);
-        const data = await res.json();
-        currentBoard = data.scores || [];
-        updateGamesPlayed(data.gamesPlayed || 0);
-        return currentBoard;
-    } catch {
-        return currentBoard;
-    }
+// ── Next button state ──
+function updateBtn() {
+  const btn = document.getElementById('nextBtn');
+
+  if (current === -1) {
+    btn.textContent = 'Start Cooking →';
+    btn.disabled = false;
+    return;
+  }
+
+  if (current >= STEPS.length) {
+    btn.style.display = 'none';
+    return;
+  }
+
+  const allDone = states[current].every(Boolean);
+  const isLast  = current === STEPS.length - 1;
+
+  if (allDone) {
+    btn.textContent = isLast ? '🎉 Complete Recipe!' : `Next: ${STEPS[current + 1].name} →`;
+    btn.disabled = false;
+  } else {
+    const left = states[current].filter(v => !v).length;
+    btn.textContent = `${left} task${left !== 1 ? 's' : ''} left`;
+    btn.disabled = true;
+  }
+  btn.style.display = '';
 }
 
-async function incrementGamesPlayed() {
-    try {
-        const res  = await fetch(`${API}/api/played`, { method:'POST' });
-        const data = await res.json();
-        updateGamesPlayed(data.gamesPlayed || 0);
-    } catch {}
+// ── Handle next button press ──
+function handleNext() {
+  if (current === -1) {
+    current = 0;
+  } else if (current < STEPS.length - 1) {
+    current++;
+  } else {
+    current = STEPS.length; // complete
+  }
+  render();
+  save();
 }
 
-function updateGamesPlayed(n) {
-    const el = document.getElementById('games-played');
-    el.textContent = n.toLocaleString();
-    el.parentElement.classList.add('tick');
-    setTimeout(()=>el.parentElement.classList.remove('tick'), 600);
+// ── Show a screen ──
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('main').scrollTop = 0;
 }
 
-// ── Render leaderboard ────────────────────────────────────────
-function renderBoard(containerId, board, highlightName) {
-    const el = document.getElementById(containerId);
-    if (!board || !board.length) {
-        el.innerHTML = '<div class="lb-empty">No scores yet — be the first!</div>';
-        return;
-    }
-    const ranks = ['🥇','🥈','🥉','4','5','6','7','8','9','10'];
-    const rows = board.map((e,i) => {
-        const hi = highlightName && e.name===highlightName;
-        return `<tr class="${hi?'lb-highlight':''}">
-          <td class="lb-rank">${ranks[i]||i+1}</td>
-          <td class="lb-name">${escHtml(e.name)}</td>
-          <td class="lb-score">${e.score.toLocaleString()}</td>
-          <td class="lb-date">${e.date||''}</td>
-        </tr>`;
-    }).join('');
-    el.innerHTML=`<table class="lb-table">
-      <thead><tr><th>RANK</th><th>NAME</th><th style="text-align:right">SCORE</th><th style="text-align:right">DATE</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+// ── Full render ──
+function render() {
+  updateProgress();
+  updateBtn();
+
+  if (current === -1) {
+    showScreen('screen-welcome');
+  } else if (current >= STEPS.length) {
+    showScreen('screen-complete');
+  } else {
+    showScreen(`screen-step-${current}`);
+    restoreStep(current);
+  }
 }
 
-function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// ── Reset ──
+function resetRecipe() {
+  current = -1;
+  states  = STEPS.map(s => s.tasks.map(() => false));
+  save();
+  render();
+}
 
-// ── Show / hide helpers ───────────────────────────────────────
-function show(id){ document.getElementById(id).classList.add('show'); }
-function hide(id){ document.getElementById(id).classList.remove('show'); }
+// ── Init ──
+load();
+buildOverview();
+buildStepScreens();
+render();
 
-// ── Init ──────────────────────────────────────────────────────
-(async () => {
-    const board = await fetchBoard();
-    renderBoard('lb-start', board, null);
-    if (!board.length) document.getElementById('lb-start-empty').style.display='block';
-    show('start-screen');
-    gameLoop();
-})();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
 </body>
 </html>

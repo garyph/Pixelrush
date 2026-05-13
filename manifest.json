@@ -1,12 +1,12 @@
 {
-  "name": "PixelDash",
-  "short_name": "PixelDash",
-  "description": "Pixel runner game with global leaderboard",
+  "name": "Sweet Chili Pork · HelloFresh",
+  "short_name": "Recipe",
+  "description": "Step-by-step recipe guide for Sweet Chili Pork with Candied Peanuts & Lime Rice",
   "start_url": "/",
-  "display": "fullscreen",
-  "orientation": "landscape",
-  "background_color": "#0a0a2a",
-  "theme_color": "#0a0a2a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f5f0",
+  "theme_color": "#2d6a4f",
   "icons": [
     { "src": "icon-192x192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512x512.png", "sizes": "512x512", "type": "image/png" }
